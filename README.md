@@ -177,6 +177,8 @@ CREATE TABLE IF NOT EXISTS members (
   email VARCHAR(100) NOT NULL,
   password VARCHAR(255) NOT NULL,
   contact_no VARCHAR(20),
+  profile_image LONGBLOB,
+  image_type VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -213,6 +215,7 @@ CREATE TABLE IF NOT EXISTS borrow_history (
   member_id INT NOT NULL,
   book_id INT NOT NULL,
   borrow_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  due_date TIMESTAMP NULL,
   return_date TIMESTAMP NULL,
   status VARCHAR(20) DEFAULT 'BORROWED',
   FOREIGN KEY (member_id) REFERENCES members(id),
@@ -221,8 +224,43 @@ CREATE TABLE IF NOT EXISTS borrow_history (
 ```
 
 ```sql
+CREATE TABLE IF NOT EXISTS deleted_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  member_id INT NOT NULL,
+  name VARCHAR(100),
+  email VARCHAR(100),
+  username VARCHAR(50),
+  reason TEXT NOT NULL,
+  deleted_by_admin_id INT,
+  deleted_by_admin_name VARCHAR(100),
+  deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+```sql
+CREATE TABLE IF NOT EXISTS deleted_branches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  branch_id INT NOT NULL,
+  name VARCHAR(100),
+  contact_no VARCHAR(20),
+  location VARCHAR(200),
+  reason TEXT NOT NULL,
+  deleted_by_admin_id INT,
+  deleted_by_admin_name VARCHAR(100),
+  deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+```sql
 INSERT INTO branches (name, contact_no, location) VALUES
 ('The Archive Co. - Main', '0412410984', 'Bengaluru');
+```
+
+**Seed the first admin.** Since admin self-signup is disabled, you must create the initial admin by hand. Any subsequent admins are added from the Admin Management page:
+
+```sql
+INSERT INTO admin (name, first_name, last_name, username, email, password, contact_no)
+VALUES ('Library Admin', 'Library', 'Admin', 'admin', 'admin@archive.co', 'admin123', '0000000000');
 ```
 
 4. Verify the tables were created:
@@ -231,7 +269,7 @@ INSERT INTO branches (name, contact_no, location) VALUES
 SHOW TABLES;
 ```
 
-You should see: `admin`, `books`, `branches`, `borrow_history`, `members`
+You should see: `admin`, `books`, `branches`, `borrow_history`, `deleted_branches`, `deleted_members`, `members`
 
 5. Type `exit` to quit MySQL.
 
@@ -414,7 +452,10 @@ LibraryPortal/
 │   │   ├── DeleteMemberServlet.java    # Remove member
 │   │   ├── AddBranchServlet.java       # Add library branch
 │   │   ├── UpdateBranchServlet.java    # Edit branch details
-│   │   ├── DeleteBranchServlet.java    # Remove branch
+│   │   ├── DeleteBranchServlet.java    # Remove branch (POST, 2-step + reason + audit)
+│   │   ├── AddAdminServlet.java        # Admin creates another admin
+│   │   ├── UpdateAdminServlet.java     # Admin updates an admin record
+│   │   ├── DeleteAdminServlet.java     # Admin deletes an admin (blocks self/last)
 │   │   ├── BorrowBookServlet.java      # Member borrows a book
 │   │   ├── ReturnBookServlet.java      # Member returns a book
 │   │   ├── ChangeCredentialsServlet.java # Change password
@@ -442,8 +483,9 @@ LibraryPortal/
 ├── resetPassword.jsp                   # Password reset form
 ├── adminDashboard.jsp                  # Admin main dashboard
 ├── adminBooks.jsp                      # Admin book management
-├── adminUsers.jsp                      # Admin user management
-├── adminBranches.jsp                   # Admin branch management
+├── adminUsers.jsp                      # Admin user management (+ deletion log)
+├── adminAdmins.jsp                     # Admin management of other admins
+├── adminBranches.jsp                   # Admin branch management (+ deletion log)
 ├── adminCatalog.jsp                    # Admin borrow/return tracking
 ├── memberDashboard.jsp                 # Member main dashboard
 ├── memberBooks.jsp                     # Member book browsing
@@ -460,7 +502,7 @@ LibraryPortal/
 | Page                 | Description                                                        |
 |----------------------|--------------------------------------------------------------------|
 | `login.jsp`          | Split-screen login with role toggle (Admin / Member). Entry point. |
-| `register.jsp`       | Registration form for both Admin and Member accounts.              |
+| `register.jsp`       | Member-only registration. Requires in-browser camera capture of a face photo to generate a virtual ID. Admin self-signup is disabled. |
 | `forgotPassword.jsp` | Username-based password recovery initiation.                       |
 | `resetPassword.jsp`  | Enter new password after username verification.                    |
 
@@ -469,25 +511,26 @@ LibraryPortal/
 | Page                   | Description                                                                 |
 |------------------------|-----------------------------------------------------------------------------|
 | `adminDashboard.jsp`   | Overview with stats (total users, books, branches), donut chart for borrow status, overdue borrowers list, and recent activity. |
-| `adminBooks.jsp`       | Full CRUD for books - add, view, edit, delete. Searchable table with columns: ID, Title, Genre, Language, Quantity, Available. |
-| `adminUsers.jsp`       | Full CRUD for members - add, view, edit, delete. Searchable table with columns: ID, Name, Email, Username. |
-| `adminBranches.jsp`    | Full CRUD for library branches - add, view, edit, delete. Searchable table with columns: ID, Name, Contact, Location. |
-| `adminCatalog.jsp`     | Tracks all borrow/return activity. View borrowed books, overdue items, and process returns. Tab-based interface. |
+| `adminBooks.jsp`       | Full CRUD for books. Deletion is blocked while any copy is borrowed or if the book has prior borrow history (preserves audit trail). |
+| `adminUsers.jsp`       | Full CRUD for members. Shows active-borrow count per member. Deletion requires that the member has returned all books, plus a mandatory reason (min 5 chars). A **Deletion Log** tab shows every deletion with reason and acting admin, visible to all admins. |
+| `adminAdmins.jsp`      | Admin-only management of other admin accounts. Self-delete blocked; last-admin delete blocked. |
+| `adminBranches.jsp`    | Full CRUD for library branches. Deletion uses a **two-step confirmation**: step 1 requires a reason (min 5 chars), step 2 requires typing the branch name exactly. A **Deletion Log** tab shows every deletion with reason and acting admin. |
+| `adminCatalog.jsp`     | Tracks all borrow/return activity. Shows due date per borrow and flags overdue items (`due_date < NOW()`). Tab-based interface. |
 
 ### Member Panel
 
 | Page                   | Description                                                                 |
 |------------------------|-----------------------------------------------------------------------------|
 | `memberDashboard.jsp`  | Personal overview with stats (total books, available, currently borrowed, total borrows) and recent activity table. |
-| `memberBooks.jsp`      | Browse all library books in a card layout. Filter by genre, search by title. Borrow books directly from the card. |
-| `memberBorrows.jsp`    | View currently borrowed books and full borrowing history. Return books from the "Currently Borrowed" tab. |
-| `memberProfile.jsp`    | View personal details (ID, name, email, username, join date). Change password. |
+| `memberBooks.jsp`      | Browse all library books in a card layout. Filter by genre, search by title. Borrow books directly from the card; each card has a **Days** input (1-30) so members can choose the loan duration. |
+| `memberBorrows.jsp`    | View currently borrowed books with due dates and full borrowing history. Overdue items are flagged automatically. Return books from the "Currently Borrowed" tab. |
+| `memberProfile.jsp`    | Shows a **Virtual ID card** with the member's photo, user ID, name, and registration date. Personal details below the card. Change password via modal. |
 
 ### Shared Components
 
 | Component              | Description                                              |
 |------------------------|----------------------------------------------------------|
-| `includes/adminSidebar.jsp`  | Admin navigation: Dashboard, Catalog, Books, Users, Branches, Logout. |
+| `includes/adminSidebar.jsp`  | Admin navigation: Dashboard, Catalog, Books, Users, Admins, Branches, Logout. |
 | `includes/memberSidebar.jsp` | Member navigation: Dashboard, Browse Books, My Borrows, Profile, Logout. |
 | `includes/adminTopbar.jsp`   | Admin header with name, role, live clock, and settings.  |
 | `includes/memberTopbar.jsp`  | Member header with name, role, live clock, and settings. |
@@ -514,15 +557,17 @@ LibraryPortal/
 | created_at    | TIMESTAMP     | Account creation date  |
 
 #### `members`
-| Column        | Type          | Description            |
-|---------------|---------------|------------------------|
-| id            | INT (PK, AI)  | Member ID              |
-| name          | VARCHAR(100)  | Full name              |
-| username      | VARCHAR(50)   | Unique username        |
-| email         | VARCHAR(100)  | Email address          |
-| password      | VARCHAR(255)  | Password               |
-| contact_no    | VARCHAR(20)   | Contact number         |
-| created_at    | TIMESTAMP     | Account creation date  |
+| Column         | Type          | Description                              |
+|----------------|---------------|------------------------------------------|
+| id             | INT (PK, AI)  | Member ID                                |
+| name           | VARCHAR(100)  | Full name                                |
+| username       | VARCHAR(50)   | Unique username                          |
+| email          | VARCHAR(100)  | Email address                            |
+| password       | VARCHAR(255)  | Password                                 |
+| contact_no     | VARCHAR(20)   | Contact number                           |
+| profile_image  | LONGBLOB      | Face photo bytes captured at registration |
+| image_type     | VARCHAR(50)   | MIME type of the photo (e.g. image/jpeg) |
+| created_at     | TIMESTAMP     | Account creation date                    |
 
 #### `books`
 | Column        | Type          | Description                   |
@@ -555,8 +600,35 @@ LibraryPortal/
 | member_id     | INT (FK)      | References `members.id`            |
 | book_id       | INT (FK)      | References `books.id`              |
 | borrow_date   | TIMESTAMP     | When the book was borrowed         |
+| due_date      | TIMESTAMP     | Expected return date (borrow + chosen days) |
 | return_date   | TIMESTAMP     | When the book was returned (nullable) |
 | status        | VARCHAR(20)   | `BORROWED` or `RETURNED`           |
+
+#### `deleted_members` (audit log)
+| Column                  | Type          | Description                     |
+|-------------------------|---------------|---------------------------------|
+| id                      | INT (PK, AI)  | Log record ID                   |
+| member_id               | INT           | Original member ID              |
+| name                    | VARCHAR(100)  | Snapshot of name at deletion    |
+| email                   | VARCHAR(100)  | Snapshot of email at deletion   |
+| username                | VARCHAR(50)   | Snapshot of username            |
+| reason                  | TEXT          | Reason provided by admin        |
+| deleted_by_admin_id     | INT           | Admin who performed the delete  |
+| deleted_by_admin_name   | VARCHAR(100)  | Name of the acting admin        |
+| deleted_at              | TIMESTAMP     | When the delete occurred        |
+
+#### `deleted_branches` (audit log)
+| Column                  | Type          | Description                     |
+|-------------------------|---------------|---------------------------------|
+| id                      | INT (PK, AI)  | Log record ID                   |
+| branch_id               | INT           | Original branch ID              |
+| name                    | VARCHAR(100)  | Snapshot of branch name         |
+| contact_no              | VARCHAR(20)   | Snapshot of contact             |
+| location                | VARCHAR(200)  | Snapshot of location            |
+| reason                  | TEXT          | Reason provided by admin        |
+| deleted_by_admin_id     | INT           | Admin who performed the delete  |
+| deleted_by_admin_name   | VARCHAR(100)  | Name of the acting admin        |
+| deleted_at              | TIMESTAMP     | When the delete occurred        |
 
 ---
 
@@ -568,19 +640,22 @@ All servlets are in `com.library.servlets` package and use `@WebServlet` annotat
 |----------------------------|--------------------------|--------|-----------------------------------|
 | AdminLoginServlet          | /AdminLoginServlet       | POST   | Authenticates admin credentials   |
 | MemberLoginServlet         | /MemberLoginServlet      | POST   | Authenticates member credentials  |
-| AdminRegisterServlet       | /AdminRegisterServlet    | POST   | Creates new admin account         |
-| MemberRegisterServlet      | /MemberRegisterServlet   | POST   | Creates new member account        |
+| AdminRegisterServlet       | /AdminRegisterServlet    | POST   | **Disabled.** Admin self-signup is blocked; redirects with an error. |
+| MemberRegisterServlet      | /MemberRegisterServlet   | POST   | Creates a new member account. Requires a base64 face photo captured at signup. |
 | LogoutServlet              | /LogoutServlet           | GET    | Invalidates session, redirects to login |
 | AddBookServlet             | /AddBookServlet          | POST   | Adds a new book to catalog        |
 | UpdateBookServlet          | /UpdateBookServlet       | POST   | Updates book details              |
-| DeleteBookServlet          | /DeleteBookServlet       | GET    | Deletes a book by ID              |
+| DeleteBookServlet          | /DeleteBookServlet       | GET    | Deletes a book by ID. Blocked if the book is currently borrowed or has borrow history. |
 | AddMemberServlet           | /AddMemberServlet        | POST   | Admin creates a member account    |
 | UpdateMemberServlet        | /UpdateMemberServlet     | POST   | Admin updates member details      |
-| DeleteMemberServlet        | /DeleteMemberServlet     | GET    | Admin deletes a member            |
+| DeleteMemberServlet        | /DeleteMemberServlet     | POST   | Admin deletes a member. Requires a reason (logged) and the member must have no active borrows. |
+| AddAdminServlet            | /AddAdminServlet         | POST   | Existing admin creates another admin account |
+| UpdateAdminServlet         | /UpdateAdminServlet      | POST   | Existing admin updates another admin record |
+| DeleteAdminServlet         | /DeleteAdminServlet      | GET    | Deletes an admin. Blocks self-delete and last-admin delete. |
 | AddBranchServlet           | /AddBranchServlet        | POST   | Adds a new library branch         |
 | UpdateBranchServlet        | /UpdateBranchServlet     | POST   | Updates branch details            |
-| DeleteBranchServlet        | /DeleteBranchServlet     | GET    | Deletes a branch by ID            |
-| BorrowBookServlet          | /BorrowBookServlet       | POST   | Records a book borrow             |
+| DeleteBranchServlet        | /DeleteBranchServlet     | POST   | Deletes a branch. Requires reason + branch name confirmation (server-verified); logged to `deleted_branches`. |
+| BorrowBookServlet          | /BorrowBookServlet       | POST   | Records a book borrow. Accepts `days` (1-30) and stores a due date. |
 | ReturnBookServlet          | /ReturnBookServlet       | POST   | Records a book return             |
 | ChangeCredentialsServlet   | /ChangeCredentialsServlet| POST   | Changes user password             |
 | ForgotPasswordServlet      | /ForgotPasswordServlet   | POST   | Initiates password reset          |
@@ -591,10 +666,15 @@ All servlets are in `com.library.servlets` package and use `@WebServlet` annotat
 ## Key Features
 
 - **Role-based access** - Separate Admin and Member interfaces
-- **Book management** - Full CRUD with genre, language, and availability tracking
-- **Borrow/Return system** - Members borrow books, admins track overdue items
-- **Branch management** - Manage multiple library branches
-- **User management** - Admins can add, edit, and remove member accounts
+- **Controlled admin provisioning** - Admin self-signup is disabled; new admins are created only by existing admins via the Admin Management page. First admin is seeded by SQL.
+- **Member virtual ID** - Face photo is captured in-browser at registration (via `getUserMedia`) and rendered on a virtual ID card in the member profile with name, user ID, and registration date.
+- **Configurable borrow duration** - Members pick a loan length of 1-30 days when borrowing; a due date is stored and displayed.
+- **Automatic overdue flagging** - Entries with `due_date < NOW()` are shown as Overdue in both member and admin views.
+- **Book management** - Full CRUD with genre, language, and availability tracking. Deletion blocked while copies are out or history exists (protects the audit trail).
+- **Borrow/Return system** - Members borrow books, admins track current and overdue items from the catalog.
+- **Branch management** - Manage multiple library branches. Deletion requires a reason and a two-step confirmation (type the branch name exactly) to prevent accidents.
+- **User management** - Admins can add, edit, and remove members. Deletion requires that the member has returned all books plus a written reason.
+- **Audit logs** - `deleted_members` and `deleted_branches` tables persist who deleted what, when, and why. Both logs are surfaced as tabs on their respective admin pages and are visible to all admins.
 - **Dashboard analytics** - Visual stats with donut charts and activity feeds
 - **Responsive design** - Clean black & white theme with CSS variables
 - **Live clock** - Real-time clock display in the topbar
