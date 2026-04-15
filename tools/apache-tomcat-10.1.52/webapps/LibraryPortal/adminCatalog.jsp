@@ -49,6 +49,7 @@
                                 <th>User ID</th>
                                 <th>Book</th>
                                 <th>Borrow Date</th>
+                                <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -56,17 +57,20 @@
                         <tbody>
                         <%
                             ResultSet rs = st.executeQuery(
-                                "SELECT bh.id, bh.member_id, b.title, bh.borrow_date, bh.status " +
-                                "FROM borrow_history bh JOIN books b ON bh.book_id = b.id " +
+                                "SELECT bh.id, bh.member_id, COALESCE(b.title, '[Removed Book]') AS title, bh.borrow_date, bh.due_date, bh.status, " +
+                                "(bh.due_date IS NOT NULL AND bh.due_date < NOW()) AS is_overdue " +
+                                "FROM borrow_history bh LEFT JOIN books b ON bh.book_id = b.id " +
                                 "WHERE bh.status = 'BORROWED' ORDER BY bh.borrow_date DESC");
                             while (rs.next()) {
+                                boolean overdue = rs.getBoolean("is_overdue");
                         %>
                             <tr>
                                 <td><%= rs.getInt("id") %></td>
                                 <td><%= rs.getInt("member_id") %></td>
                                 <td><%= rs.getString("title") %></td>
                                 <td><%= rs.getTimestamp("borrow_date") %></td>
-                                <td><span class="status-borrowed">Borrowed</span></td>
+                                <td><%= rs.getTimestamp("due_date") != null ? rs.getTimestamp("due_date") : "-" %></td>
+                                <td><span class="<%= overdue ? "status-overdue" : "status-borrowed" %>"><%= overdue ? "Overdue" : "Borrowed" %></span></td>
                                 <td>
                                     <div class="action-btns">
                                         <button class="action-btn view-btn" onclick="openModal('borrowViewModal-<%= rs.getInt("id") %>')" title="View"><img src="img/icon-view.svg" alt="View" style="width:14px;height:14px"></button>
@@ -89,6 +93,7 @@
                                 <th>User ID</th>
                                 <th>Book</th>
                                 <th>Borrow Date</th>
+                                <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -96,10 +101,10 @@
                         <tbody>
                         <%
                             ResultSet rsO = st.executeQuery(
-                                "SELECT bh.id, bh.member_id, b.title, bh.borrow_date, bh.status " +
-                                "FROM borrow_history bh JOIN books b ON bh.book_id = b.id " +
-                                "WHERE bh.status = 'BORROWED' AND bh.borrow_date < DATE_SUB(NOW(), INTERVAL 14 DAY) " +
-                                "ORDER BY bh.borrow_date");
+                                "SELECT bh.id, bh.member_id, COALESCE(b.title, '[Removed Book]') AS title, bh.borrow_date, bh.due_date, bh.status " +
+                                "FROM borrow_history bh LEFT JOIN books b ON bh.book_id = b.id " +
+                                "WHERE bh.status = 'BORROWED' AND bh.due_date IS NOT NULL AND bh.due_date < NOW() " +
+                                "ORDER BY bh.due_date");
                             while (rsO.next()) {
                         %>
                             <tr>
@@ -107,6 +112,7 @@
                                 <td><%= rsO.getInt("member_id") %></td>
                                 <td><%= rsO.getString("title") %></td>
                                 <td><%= rsO.getTimestamp("borrow_date") %></td>
+                                <td><%= rsO.getTimestamp("due_date") != null ? rsO.getTimestamp("due_date") : "-" %></td>
                                 <td><span class="status-overdue">Overdue</span></td>
                                 <td>
                                     <div class="action-btns">

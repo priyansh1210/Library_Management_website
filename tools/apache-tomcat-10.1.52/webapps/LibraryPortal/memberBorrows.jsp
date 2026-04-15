@@ -54,6 +54,7 @@
                                 <th>ID</th>
                                 <th>Book</th>
                                 <th>Borrow Date</th>
+                                <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -61,19 +62,22 @@
                         <tbody>
                         <%
                             ResultSet rsCurrent = st.executeQuery(
-                                "SELECT bh.id, b.title, bh.borrow_date, bh.status " +
-                                "FROM borrow_history bh JOIN books b ON bh.book_id = b.id " +
+                                "SELECT bh.id, COALESCE(b.title, '[Removed Book]') AS title, bh.borrow_date, bh.due_date, bh.status, " +
+                                "(bh.due_date IS NOT NULL AND bh.due_date < NOW()) AS is_overdue " +
+                                "FROM borrow_history bh LEFT JOIN books b ON bh.book_id = b.id " +
                                 "WHERE bh.member_id = " + memberId + " AND bh.status = 'BORROWED' " +
                                 "ORDER BY bh.borrow_date DESC");
                             boolean hasCurrent = false;
                             while (rsCurrent.next()) {
                                 hasCurrent = true;
+                                boolean overdue = rsCurrent.getBoolean("is_overdue");
                         %>
                             <tr>
                                 <td><%= rsCurrent.getInt("id") %></td>
                                 <td><%= rsCurrent.getString("title") %></td>
                                 <td><%= rsCurrent.getTimestamp("borrow_date") %></td>
-                                <td><span class="status-borrowed">Borrowed</span></td>
+                                <td><%= rsCurrent.getTimestamp("due_date") != null ? rsCurrent.getTimestamp("due_date") : "-" %></td>
+                                <td><span class="<%= overdue ? "status-overdue" : "status-borrowed" %>"><%= overdue ? "Overdue" : "Borrowed" %></span></td>
                                 <td>
                                     <form action="ReturnBookServlet" method="post" style="display:inline">
                                         <input type="hidden" name="borrowId" value="<%= rsCurrent.getInt("id") %>">
@@ -84,7 +88,7 @@
                         <% }
                             if (!hasCurrent) {
                         %>
-                            <tr><td colspan="5" class="text-center" style="padding:40px;color:#999;">No books currently borrowed</td></tr>
+                            <tr><td colspan="6" class="text-center" style="padding:40px;color:#999;">No books currently borrowed</td></tr>
                         <% } %>
                         </tbody>
                     </table>
@@ -100,6 +104,7 @@
                                 <th>ID</th>
                                 <th>Book</th>
                                 <th>Borrow Date</th>
+                                <th>Due Date</th>
                                 <th>Return Date</th>
                                 <th>Status</th>
                             </tr>
@@ -108,27 +113,30 @@
                         <%
                             Statement st2 = conn.createStatement();
                             ResultSet rsHist = st2.executeQuery(
-                                "SELECT bh.id, b.title, bh.borrow_date, bh.return_date, bh.status " +
-                                "FROM borrow_history bh JOIN books b ON bh.book_id = b.id " +
+                                "SELECT bh.id, COALESCE(b.title, '[Removed Book]') AS title, bh.borrow_date, bh.due_date, bh.return_date, bh.status, " +
+                                "(bh.status='BORROWED' AND bh.due_date IS NOT NULL AND bh.due_date < NOW()) AS is_overdue " +
+                                "FROM borrow_history bh LEFT JOIN books b ON bh.book_id = b.id " +
                                 "WHERE bh.member_id = " + memberId + " ORDER BY bh.borrow_date DESC");
                             boolean hasHist = false;
                             while (rsHist.next()) {
                                 hasHist = true;
                                 String status = rsHist.getString("status");
+                                boolean overdue = rsHist.getBoolean("is_overdue");
+                                String label = overdue ? "Overdue" : status;
+                                String cls = overdue ? "status-overdue" : ("BORROWED".equals(status) ? "status-borrowed" : "status-available");
                         %>
                             <tr>
                                 <td><%= rsHist.getInt("id") %></td>
                                 <td><%= rsHist.getString("title") %></td>
                                 <td><%= rsHist.getTimestamp("borrow_date") %></td>
+                                <td><%= rsHist.getTimestamp("due_date") != null ? rsHist.getTimestamp("due_date") : "-" %></td>
                                 <td><%= rsHist.getTimestamp("return_date") != null ? rsHist.getTimestamp("return_date") : "-" %></td>
-                                <td>
-                                    <span class="<%= "BORROWED".equals(status) ? "status-borrowed" : "status-available" %>"><%= status %></span>
-                                </td>
+                                <td><span class="<%= cls %>"><%= label %></span></td>
                             </tr>
                         <% }
                             if (!hasHist) {
                         %>
-                            <tr><td colspan="5" class="text-center" style="padding:40px;color:#999;">No borrow history</td></tr>
+                            <tr><td colspan="6" class="text-center" style="padding:40px;color:#999;">No borrow history</td></tr>
                         <% } %>
                         </tbody>
                     </table>

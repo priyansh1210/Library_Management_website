@@ -79,6 +79,13 @@
                     </span>
                     <form action="BorrowBookServlet" method="post" style="margin-top:8px">
                         <input type="hidden" name="bookId" value="<%= bookId %>">
+                        <% if (available > 0) { %>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px;color:#555">
+                            <label for="days-<%= bookId %>">Days:</label>
+                            <input type="number" id="days-<%= bookId %>" name="days" min="1" max="30" value="14" required style="width:60px;padding:4px 6px;border:1px solid #ccc;border-radius:4px">
+                            <span style="color:#999">(1-30)</span>
+                        </div>
+                        <% } %>
                         <button type="submit" class="btn-borrow" <%= available <= 0 ? "disabled" : "" %>>
                             <%= available > 0 ? "BORROW" : "UNAVAILABLE" %>
                         </button>

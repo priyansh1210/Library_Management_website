@@ -17,6 +17,9 @@
         <a href="adminUsers.jsp" class="${param.page == 'users' ? 'active' : ''}">
             <img src="img/icon-users.svg" class="nav-icon-img" alt="Users"><span>Users</span>
         </a>
+        <a href="adminAdmins.jsp" class="${param.page == 'admins' ? 'active' : ''}">
+            <img src="img/icon-users.svg" class="nav-icon-img" alt="Admins"><span>Admins</span>
+        </a>
         <a href="adminBranches.jsp" class="${param.page == 'branches' ? 'active' : ''}">
             <img src="img/icon-branches.svg" class="nav-icon-img" alt="Branches"><span>Branches</span>
         </a>

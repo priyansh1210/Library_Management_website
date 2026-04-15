@@ -20,6 +20,7 @@ public class BorrowBookServlet extends HttpServlet {
 
         int memberId = (int) session.getAttribute("memberId");
         String bookIdStr = request.getParameter("bookId");
+        String daysStr = request.getParameter("days");
 
         if (bookIdStr == null) {
             response.sendRedirect("memberBooks.jsp?msg=Book ID is required");
@@ -27,24 +28,31 @@ public class BorrowBookServlet extends HttpServlet {
         }
 
         int bookId = Integer.parseInt(bookIdStr);
+        int days = 14;
+        try {
+            if (daysStr != null && !daysStr.trim().isEmpty()) {
+                days = Integer.parseInt(daysStr.trim());
+            }
+        } catch (NumberFormatException e) { days = 14; }
+        if (days < 1) days = 1;
+        if (days > 30) days = 30;
 
         try (Connection conn = DBConnection.getConnection()) {
-            // Check availability
             PreparedStatement checkPs = conn.prepareStatement("SELECT available FROM books WHERE id=?");
             checkPs.setInt(1, bookId);
             ResultSet rs = checkPs.executeQuery();
 
             if (rs.next() && rs.getInt("available") > 0) {
-                // Insert borrow record
                 PreparedStatement borrowPs = conn.prepareStatement(
-                    "INSERT INTO borrow_history (member_id, book_id, borrow_date, status) VALUES (?,?,NOW(),'BORROWED')"
+                    "INSERT INTO borrow_history (member_id, book_id, borrow_date, due_date, status) " +
+                    "VALUES (?,?,NOW(), DATE_ADD(NOW(), INTERVAL ? DAY), 'BORROWED')"
                 );
                 borrowPs.setInt(1, memberId);
                 borrowPs.setInt(2, bookId);
+                borrowPs.setInt(3, days);
                 borrowPs.executeUpdate();
                 borrowPs.close();
 
-                // Decrease available count
                 PreparedStatement updatePs = conn.prepareStatement(
                     "UPDATE books SET available = available - 1 WHERE id=?"
                 );
@@ -52,7 +60,7 @@ public class BorrowBookServlet extends HttpServlet {
                 updatePs.executeUpdate();
                 updatePs.close();
 
-                response.sendRedirect("memberBooks.jsp?msg=Book borrowed successfully!");
+                response.sendRedirect("memberBooks.jsp?msg=Book borrowed for " + days + " day(s). Return by due date to avoid overdue.");
             } else {
                 response.sendRedirect("memberBooks.jsp?msg=Book not available");
             }

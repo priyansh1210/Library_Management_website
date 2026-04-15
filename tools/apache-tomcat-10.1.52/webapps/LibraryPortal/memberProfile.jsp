@@ -6,7 +6,7 @@
         return;
     }
     int memberId = (int) session.getAttribute("memberId");
-    String memberName = "", memberEmail = "", memberUsername = "", memberJoined = "";
+    String memberName = "", memberEmail = "", memberUsername = "", memberJoined = "", photoDataUrl = "";
     Connection conn = null;
     try {
         Class.forName("com.mysql.cj.jdbc.Driver");
@@ -19,6 +19,12 @@
             memberEmail = rs.getString("email");
             memberUsername = rs.getString("username") != null ? rs.getString("username") : memberEmail;
             memberJoined = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "N/A";
+            byte[] img = rs.getBytes("profile_image");
+            String mime = rs.getString("image_type");
+            if (img != null && img.length > 0) {
+                if (mime == null || mime.isEmpty()) mime = "image/jpeg";
+                photoDataUrl = "data:" + mime + ";base64," + java.util.Base64.getEncoder().encodeToString(img);
+            }
         }
 %>
 <!DOCTYPE html>
@@ -39,6 +45,33 @@
         <div class="page-content">
             <div class="page-header">
                 <h1>My Profile</h1>
+            </div>
+
+            <!-- Virtual ID Card -->
+            <div style="margin-bottom:24px">
+                <div style="max-width:420px;background:linear-gradient(135deg,#111 0%,#333 100%);color:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 16px rgba(0,0,0,0.15)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:10px">
+                        <div style="font-size:11px;letter-spacing:2px;opacity:0.7">THE ARCHIVE CO.</div>
+                        <div style="font-size:11px;letter-spacing:1px;opacity:0.7">MEMBER ID</div>
+                    </div>
+                    <div style="display:flex;gap:16px;align-items:center">
+                        <div style="width:90px;height:110px;border-radius:6px;overflow:hidden;background:#555;flex-shrink:0;border:2px solid rgba(255,255,255,0.3)">
+                            <% if (!photoDataUrl.isEmpty()) { %>
+                                <img src="<%= photoDataUrl %>" alt="Photo" style="width:100%;height:100%;object-fit:cover">
+                            <% } else { %>
+                                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff"><%= memberName.length() > 0 ? memberName.substring(0,1).toUpperCase() : "?" %></div>
+                            <% } %>
+                        </div>
+                        <div style="flex:1;min-width:0">
+                            <div style="font-size:11px;opacity:0.6;letter-spacing:1px">NAME</div>
+                            <div style="font-size:16px;font-weight:600;margin-bottom:8px;word-break:break-word"><%= memberName %></div>
+                            <div style="font-size:11px;opacity:0.6;letter-spacing:1px">USER ID</div>
+                            <div style="font-size:14px;font-weight:500;margin-bottom:8px">#<%= String.format("%06d", memberId) %></div>
+                            <div style="font-size:11px;opacity:0.6;letter-spacing:1px">REGISTERED</div>
+                            <div style="font-size:12px;font-weight:500"><%= memberJoined %></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="profile-section">

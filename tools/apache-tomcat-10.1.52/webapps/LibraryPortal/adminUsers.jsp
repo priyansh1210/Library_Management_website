@@ -11,7 +11,10 @@
         Class.forName("com.mysql.cj.jdbc.Driver");
         conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/library_portal", "root", "");
         Statement st = conn.createStatement();
-        ResultSet rs = st.executeQuery("SELECT * FROM members ORDER BY id");
+        ResultSet rs = st.executeQuery(
+            "SELECT m.id, m.name, m.email, m.username, " +
+            "(SELECT COUNT(*) FROM borrow_history bh WHERE bh.member_id=m.id AND bh.status='BORROWED') AS active_borrows " +
+            "FROM members m ORDER BY m.id");
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -33,81 +36,145 @@
                 <div class="alert alert-success"><%= msg %></div>
             <% } %>
 
-            <div class="page-header">
-                <h1>User Management</h1>
-                <div class="page-header-actions">
-                    <button class="btn-add" onclick="openModal('addUserModal')">
-                        <span class="icon"><img src="img/icon-add.svg" alt="Add" style="width:14px;height:14px;vertical-align:middle;filter:invert(1)"></span> Add User
-                    </button>
-                    <div class="search-box">
-                        <span class="search-icon"><img src="img/icon-search.svg" alt="Search" style="width:16px;height:16px"></span>
-                        <input type="text" class="search-input" data-table="usersTable" placeholder="Search by ID or Name">
-                    </div>
+            <!-- Tabs -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab-group="users" data-tab-target="usersPanel">Users</button>
+                    <button class="tab-btn" data-tab-group="users" data-tab-target="deletionLogPanel">Deletion Log</button>
+                </div>
+                <div class="search-box">
+                    <span class="search-icon"><img src="img/icon-search.svg" alt="Search" style="width:16px;height:16px"></span>
+                    <input type="text" class="search-input" data-table="usersTable" placeholder="Search by ID or Name">
                 </div>
             </div>
 
-            <div class="data-table-wrapper">
-                <table class="data-table" id="usersTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Username</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <% while (rs.next()) {
-                        int uid = rs.getInt("id");
-                        String uname = rs.getString("name");
-                        String uemail = rs.getString("email");
-                        String uusername = rs.getString("username") != null ? rs.getString("username") : uemail;
-                    %>
-                        <tr>
-                            <td><%= uid %></td>
-                            <td><%= uname %></td>
-                            <td><%= uemail %></td>
-                            <td><%= uusername %></td>
-                            <td>
-                                <div class="action-btns">
-                                    <button class="action-btn edit-btn" onclick="populateEditForm('editUserModal', {id:'<%= uid %>', name:'<%= uname.replace("'","\\'") %>', email:'<%= uemail.replace("'","\\'") %>', username:'<%= uusername.replace("'","\\'") %>'})" title="Edit"><img src="img/icon-edit.svg" alt="Edit" style="width:14px;height:14px"></button>
-                                    <button class="action-btn delete-btn" onclick="confirmDelete('DeleteMemberServlet?id=<%= uid %>')" title="Delete"><img src="img/icon-delete.svg" alt="Delete" style="width:14px;height:14px"></button>
-                                    <button class="action-btn view-btn" onclick="openModal('viewUserModal-<%= uid %>')" title="View"><img src="img/icon-view.svg" alt="View" style="width:14px;height:14px"></button>
-                                </div>
-                            </td>
-                        </tr>
+            <!-- Users Tab -->
+            <div class="tab-panel" id="usersPanel" data-tab-group="users">
+                <div class="page-header">
+                    <h1>User Management</h1>
+                    <div class="page-header-actions">
+                        <button class="btn-add" onclick="openModal('addUserModal')">
+                            <span class="icon"><img src="img/icon-add.svg" alt="Add" style="width:14px;height:14px;vertical-align:middle;filter:invert(1)"></span> Add User
+                        </button>
+                    </div>
+                </div>
 
-                        <!-- View User Modal -->
-                        <div class="modal-overlay" id="viewUserModal-<%= uid %>">
-                            <div class="modal">
-                                <div class="modal-header">
-                                    <h2><span class="modal-icon"><img src="img/icon-users.svg" alt="Users" style="width:20px;height:20px;vertical-align:middle"></span> View User</h2>
-                                    <button class="modal-close">&times;</button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="view-meta">
-                                        <div class="view-details">
-                                            <div class="detail-row"><span class="detail-label">User ID :</span><span class="detail-value"><%= uid %></span></div>
-                                            <div class="detail-row"><span class="detail-label">Name :</span><span class="detail-value"><%= uname %></span></div>
-                                            <div class="detail-row"><span class="detail-label">Email :</span><span class="detail-value"><%= uemail %></span></div>
-                                            <div class="detail-row"><span class="detail-label">Username :</span><span class="detail-value"><%= uusername %></span></div>
-                                        </div>
-                                        <div class="view-saved-by">
-                                            Saved by :<br>
-                                            <strong><%= session.getAttribute("adminName") %></strong>
-                                            (Admin)
+                <div class="data-table-wrapper">
+                    <table class="data-table" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Username</th>
+                                <th>Active Borrows</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <% while (rs.next()) {
+                            int uid = rs.getInt("id");
+                            String uname = rs.getString("name");
+                            String uemail = rs.getString("email");
+                            String uusername = rs.getString("username") != null ? rs.getString("username") : uemail;
+                            int activeBorrows = rs.getInt("active_borrows");
+                        %>
+                            <tr>
+                                <td><%= uid %></td>
+                                <td><%= uname %></td>
+                                <td><%= uemail %></td>
+                                <td><%= uusername %></td>
+                                <td><%= activeBorrows %></td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="action-btn edit-btn" onclick="populateEditForm('editUserModal', {id:'<%= uid %>', name:'<%= uname.replace("'","\\'") %>', email:'<%= uemail.replace("'","\\'") %>', username:'<%= uusername.replace("'","\\'") %>'})" title="Edit"><img src="img/icon-edit.svg" alt="Edit" style="width:14px;height:14px"></button>
+                                        <% if (activeBorrows > 0) { %>
+                                        <button class="action-btn delete-btn" onclick="alert('Cannot delete: member has <%= activeBorrows %> book(s) not yet returned.')" title="Cannot delete - active borrows"><img src="img/icon-delete.svg" alt="Delete" style="width:14px;height:14px;opacity:0.4"></button>
+                                        <% } else { %>
+                                        <button class="action-btn delete-btn" onclick="openDeleteMemberModal(<%= uid %>, '<%= uname.replace("'","\\'") %>')" title="Delete"><img src="img/icon-delete.svg" alt="Delete" style="width:14px;height:14px"></button>
+                                        <% } %>
+                                        <button class="action-btn view-btn" onclick="openModal('viewUserModal-<%= uid %>')" title="View"><img src="img/icon-view.svg" alt="View" style="width:14px;height:14px"></button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- View User Modal -->
+                            <div class="modal-overlay" id="viewUserModal-<%= uid %>">
+                                <div class="modal">
+                                    <div class="modal-header">
+                                        <h2><span class="modal-icon"><img src="img/icon-users.svg" alt="Users" style="width:20px;height:20px;vertical-align:middle"></span> View User</h2>
+                                        <button class="modal-close">&times;</button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="view-meta">
+                                            <div class="view-details">
+                                                <div class="detail-row"><span class="detail-label">User ID :</span><span class="detail-value"><%= uid %></span></div>
+                                                <div class="detail-row"><span class="detail-label">Name :</span><span class="detail-value"><%= uname %></span></div>
+                                                <div class="detail-row"><span class="detail-label">Email :</span><span class="detail-value"><%= uemail %></span></div>
+                                                <div class="detail-row"><span class="detail-label">Username :</span><span class="detail-value"><%= uusername %></span></div>
+                                                <div class="detail-row"><span class="detail-label">Active Borrows :</span><span class="detail-value"><%= activeBorrows %></span></div>
+                                            </div>
+                                            <div class="view-saved-by">
+                                                Saved by :<br>
+                                                <strong><%= session.getAttribute("adminName") %></strong>
+                                                (Admin)
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button class="btn-confirm" onclick="closeModal('viewUserModal-<%= uid %>')">CLOSE</button>
+                                    <div class="modal-footer">
+                                        <button class="btn-confirm" onclick="closeModal('viewUserModal-<%= uid %>')">CLOSE</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    <% } %>
-                    </tbody>
-                </table>
+                        <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Deletion Log Tab -->
+            <div class="tab-panel hidden" id="deletionLogPanel" data-tab-group="users">
+                <div class="page-header">
+                    <h1>Deletion Log</h1>
+                    <p style="color:#666;margin:0">Audit trail of deleted members, visible to all admins.</p>
+                </div>
+                <div class="data-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Member ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Reason</th>
+                                <th>Deleted By</th>
+                                <th>Deleted At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <%
+                            Statement stLog = conn.createStatement();
+                            ResultSet rsLog = stLog.executeQuery(
+                                "SELECT member_id, name, email, reason, deleted_by_admin_name, deleted_at " +
+                                "FROM deleted_members ORDER BY deleted_at DESC");
+                            boolean hasLog = false;
+                            while (rsLog.next()) {
+                                hasLog = true;
+                        %>
+                            <tr>
+                                <td><%= rsLog.getInt("member_id") %></td>
+                                <td><%= rsLog.getString("name") != null ? rsLog.getString("name") : "-" %></td>
+                                <td><%= rsLog.getString("email") != null ? rsLog.getString("email") : "-" %></td>
+                                <td style="max-width:280px;white-space:normal"><%= rsLog.getString("reason") %></td>
+                                <td><%= rsLog.getString("deleted_by_admin_name") != null ? rsLog.getString("deleted_by_admin_name") : "-" %></td>
+                                <td><%= rsLog.getTimestamp("deleted_at") %></td>
+                            </tr>
+                        <% }
+                            if (!hasLog) { %>
+                            <tr><td colspan="6" class="text-center" style="padding:40px;color:#999;">No deletions recorded yet</td></tr>
+                        <% } %>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -162,19 +229,27 @@
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal-overlay delete-modal" id="deleteModal">
+<!-- Delete Member Modal (with reason) -->
+<div class="modal-overlay delete-modal" id="deleteMemberModal">
     <div class="modal">
         <div class="modal-header">
-            <h2><span class="modal-icon"><img src="img/icon-delete.svg" alt="Delete" style="width:20px;height:20px;vertical-align:middle"></span> Delete Confirmation</h2>
+            <h2><span class="modal-icon"><img src="img/icon-delete.svg" alt="Delete" style="width:20px;height:20px;vertical-align:middle"></span> Delete Member</h2>
             <button class="modal-close">&times;</button>
         </div>
-        <div class="modal-body">
-            <p>"Are you certain you wish to proceed with the deletion of the selected entry?"</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-confirm" onclick="executeDelete()">CONFIRM</button>
-        </div>
+        <form action="DeleteMemberServlet" method="post">
+            <input type="hidden" name="id" id="deleteMemberId">
+            <div class="modal-body">
+                <p>You are about to delete <strong id="deleteMemberName"></strong>. Please provide a reason (min 5 characters). This will be logged and visible to all admins.</p>
+                <div class="form-group" style="margin-top:12px">
+                    <label>Reason</label>
+                    <textarea name="reason" required minlength="5" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical" placeholder="e.g., Duplicate account, user request, policy violation..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel">CANCEL</button>
+                <button type="submit" class="btn-confirm">CONFIRM DELETE</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -201,6 +276,15 @@
 </div>
 
 <script src="js/main.js"></script>
+<script>
+function openDeleteMemberModal(id, name) {
+    document.getElementById('deleteMemberId').value = id;
+    document.getElementById('deleteMemberName').textContent = name;
+    var form = document.querySelector('#deleteMemberModal form');
+    if (form) form.querySelector('textarea[name="reason"]').value = '';
+    openModal('deleteMemberModal');
+}
+</script>
 </body>
 </html>
 <%
