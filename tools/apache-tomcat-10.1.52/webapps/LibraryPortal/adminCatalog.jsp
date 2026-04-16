@@ -258,36 +258,46 @@
                                     </div>
                                 </td>
                             </tr>
-                            <!-- Virtual ID Card Modal -->
+                            <%
+                                String oTitle = rsO.getString("title");
+                                String oBorrowDate = rsO.getTimestamp("borrow_date") != null ? rsO.getTimestamp("borrow_date").toString() : "-";
+                                String oDueDate = rsO.getTimestamp("due_date") != null ? rsO.getTimestamp("due_date").toString() : "-";
+                                // Calculate days overdue
+                                long oDaysOverdue = 0;
+                                if (rsO.getTimestamp("due_date") != null) {
+                                    oDaysOverdue = java.time.temporal.ChronoUnit.DAYS.between(
+                                        rsO.getTimestamp("due_date").toLocalDateTime().toLocalDate(),
+                                        java.time.LocalDate.now());
+                                }
+                            %>
+                            <!-- Overdue Details Modal -->
                             <div class="modal-overlay" id="overdueViewModal-<%= oBorrowId %>">
                                 <div class="modal">
                                     <div class="modal-header">
-                                        <h2><span class="modal-icon"><img src="img/icon-users.svg" alt="User" style="width:20px;height:20px;vertical-align:middle"></span> Member Virtual ID</h2>
+                                        <h2><span class="modal-icon"><img src="img/icon-books.svg" alt="Book" style="width:20px;height:20px;vertical-align:middle"></span> Overdue Details</h2>
                                         <button class="modal-close">&times;</button>
                                     </div>
                                     <div class="modal-body">
-                                        <div style="max-width:420px;margin:0 auto;background:linear-gradient(135deg,#111 0%,#333 100%);color:#fff;border-radius:12px;padding:20px;box-shadow:0 4px 16px rgba(0,0,0,0.15)">
-                                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:10px">
-                                                <div style="font-size:11px;letter-spacing:2px;opacity:0.7">THE ARCHIVE CO.</div>
-                                                <div style="font-size:11px;letter-spacing:1px;opacity:0.7">MEMBER ID</div>
+                                        <!-- Member Info -->
+                                        <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #eee">
+                                            <div style="width:50px;height:50px;border-radius:50%;overflow:hidden;background:#555;flex-shrink:0">
+                                                <% if (!oMPhoto.isEmpty()) { %>
+                                                    <img src="<%= oMPhoto %>" alt="Photo" style="width:100%;height:100%;object-fit:cover">
+                                                <% } else { %>
+                                                    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;background:#333"><%= oMname.length() > 0 ? oMname.substring(0,1).toUpperCase() : "?" %></div>
+                                                <% } %>
                                             </div>
-                                            <div style="display:flex;gap:16px;align-items:center">
-                                                <div style="width:90px;height:110px;border-radius:6px;overflow:hidden;background:#555;flex-shrink:0;border:2px solid rgba(255,255,255,0.3)">
-                                                    <% if (!oMPhoto.isEmpty()) { %>
-                                                        <img src="<%= oMPhoto %>" alt="Photo" style="width:100%;height:100%;object-fit:cover">
-                                                    <% } else { %>
-                                                        <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff"><%= oMname.length() > 0 ? oMname.substring(0,1).toUpperCase() : "?" %></div>
-                                                    <% } %>
-                                                </div>
-                                                <div style="flex:1;min-width:0">
-                                                    <div style="font-size:11px;opacity:0.6;letter-spacing:1px">NAME</div>
-                                                    <div style="font-size:16px;font-weight:600;margin-bottom:8px;word-break:break-word"><%= oMname %></div>
-                                                    <div style="font-size:11px;opacity:0.6;letter-spacing:1px">USER ID</div>
-                                                    <div style="font-size:14px;font-weight:500;margin-bottom:8px">#<%= String.format("%06d", oMid) %></div>
-                                                    <div style="font-size:11px;opacity:0.6;letter-spacing:1px">REGISTERED</div>
-                                                    <div style="font-size:12px;font-weight:500"><%= oMJoined %></div>
-                                                </div>
+                                            <div>
+                                                <div style="font-weight:600;font-size:15px"><%= oMname %></div>
+                                                <div style="font-size:12px;color:#666">User ID: #<%= String.format("%06d", oMid) %></div>
                                             </div>
+                                        </div>
+                                        <!-- Book & Overdue Details -->
+                                        <div class="view-details">
+                                            <div class="detail-row"><span class="detail-label">Book :</span><span class="detail-value"><%= oTitle %></span></div>
+                                            <div class="detail-row"><span class="detail-label">Borrow Date :</span><span class="detail-value"><%= oBorrowDate %></span></div>
+                                            <div class="detail-row"><span class="detail-label">Due Date :</span><span class="detail-value"><%= oDueDate %></span></div>
+                                            <div class="detail-row"><span class="detail-label">Days Overdue :</span><span class="detail-value" style="color:#b00;font-weight:700"><%= oDaysOverdue %> day<%= oDaysOverdue != 1 ? "s" : "" %></span></div>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
