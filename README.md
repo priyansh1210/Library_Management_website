@@ -457,7 +457,9 @@ LibraryPortal/
 │   │   ├── UpdateAdminServlet.java     # Admin updates an admin record
 │   │   ├── DeleteAdminServlet.java     # Admin deletes an admin (blocks self/last)
 │   │   ├── BorrowBookServlet.java      # Member borrows a book
-│   │   ├── ReturnBookServlet.java      # Member returns a book
+│   │   ├── ReturnBookServlet.java      # Member requests a return (sets RETURN_PENDING)
+│   │   ├── ApproveReturnServlet.java   # Admin approves a return request
+│   │   ├── RejectReturnServlet.java    # Admin rejects a return request (with reason)
 │   │   ├── ChangeCredentialsServlet.java # Change password
 │   │   ├── ForgotPasswordServlet.java  # Forgot password flow
 │   │   ├── ResetPasswordServlet.java   # Reset password
@@ -469,7 +471,8 @@ LibraryPortal/
 │   ├── adminSidebar.jsp                # Admin navigation sidebar
 │   ├── adminTopbar.jsp                 # Admin top header bar
 │   ├── memberSidebar.jsp               # Member navigation sidebar
-│   └── memberTopbar.jsp                # Member top header bar
+│   ├── memberTopbar.jsp                # Member top header bar
+│   └── footer.jsp                      # Shared footer (logo + credits)
 ├── css/
 │   └── style.css                       # Complete application styles
 ├── js/
@@ -481,12 +484,14 @@ LibraryPortal/
 ├── register.jsp                        # User registration
 ├── forgotPassword.jsp                  # Password recovery
 ├── resetPassword.jsp                   # Password reset form
+├── adminHome.jsp                       # Admin landing page (redirects to dashboard)
 ├── adminDashboard.jsp                  # Admin main dashboard
 ├── adminBooks.jsp                      # Admin book management
 ├── adminUsers.jsp                      # Admin user management (+ deletion log)
 ├── adminAdmins.jsp                     # Admin management of other admins
 ├── adminBranches.jsp                   # Admin branch management (+ deletion log)
 ├── adminCatalog.jsp                    # Admin borrow/return tracking
+├── memberHome.jsp                      # Member landing page (redirects to dashboard)
 ├── memberDashboard.jsp                 # Member main dashboard
 ├── memberBooks.jsp                     # Member book browsing
 ├── memberBorrows.jsp                   # Member borrow history
@@ -502,7 +507,7 @@ LibraryPortal/
 | Page                 | Description                                                        |
 |----------------------|--------------------------------------------------------------------|
 | `login.jsp`          | Split-screen login with role toggle (Admin / Member). Entry point. |
-| `register.jsp`       | Member-only registration. Requires in-browser camera capture of a face photo to generate a virtual ID. Admin self-signup is disabled. |
+| `register.jsp`       | Member-only registration. Requires uploading a profile photo (JPEG/PNG/WebP, max 5 MB). Contact number is mandatory (Indian 10-digit format). Admin self-signup is disabled. |
 | `forgotPassword.jsp` | Username-based password recovery initiation.                       |
 | `resetPassword.jsp`  | Enter new password after username verification.                    |
 
@@ -511,11 +516,11 @@ LibraryPortal/
 | Page                   | Description                                                                 |
 |------------------------|-----------------------------------------------------------------------------|
 | `adminDashboard.jsp`   | Overview with stats (total users, books, branches), donut chart for borrow status, overdue borrowers list, and recent activity. |
-| `adminBooks.jsp`       | Full CRUD for books. Deletion is blocked while any copy is borrowed or if the book has prior borrow history (preserves audit trail). |
-| `adminUsers.jsp`       | Full CRUD for members. Shows active-borrow count per member. Deletion requires that the member has returned all books, plus a mandatory reason (min 5 chars). A **Deletion Log** tab shows every deletion with reason and acting admin, visible to all admins. |
+| `adminBooks.jsp`       | Full CRUD for books with genre filter buttons. Deletion is blocked while any copy is borrowed or if the book has prior borrow history (preserves audit trail). |
+| `adminUsers.jsp`       | Member management with limited edit (email and contact only). Shows active-borrow count and virtual ID card per member. Deletion requires that the member has returned all books, plus a mandatory reason (min 5 chars). A **Deletion Log** tab shows every deletion with reason and acting admin, visible to all admins. |
 | `adminAdmins.jsp`      | Admin-only management of other admin accounts. Self-delete blocked; last-admin delete blocked. |
 | `adminBranches.jsp`    | Full CRUD for library branches. Deletion uses a **two-step confirmation**: step 1 requires a reason (min 5 chars), step 2 requires typing the branch name exactly. A **Deletion Log** tab shows every deletion with reason and acting admin. |
-| `adminCatalog.jsp`     | Tracks all borrow/return activity. Shows due date per borrow and flags overdue items (`due_date < NOW()`). Tab-based interface. |
+| `adminCatalog.jsp`     | Tracks all borrow/return activity. **Return Requests** tab shows pending returns for admin approval/rejection. Shows due date per borrow and flags overdue items (`due_date < NOW()`). Tab-based interface. |
 
 ### Member Panel
 
@@ -523,7 +528,7 @@ LibraryPortal/
 |------------------------|-----------------------------------------------------------------------------|
 | `memberDashboard.jsp`  | Personal overview with stats (total books, available, currently borrowed, total borrows) and recent activity table. |
 | `memberBooks.jsp`      | Browse all library books in a card layout. Filter by genre, search by title. Borrow books directly from the card; each card has a **Days** input (1-30) so members can choose the loan duration. |
-| `memberBorrows.jsp`    | View currently borrowed books with due dates and full borrowing history. Overdue items are flagged automatically. Return books from the "Currently Borrowed" tab. |
+| `memberBorrows.jsp`    | View currently borrowed books with due dates and full borrowing history. Overdue items are flagged automatically. Request returns from the "Currently Borrowed" tab; shows return-pending and rejection statuses with admin messages. |
 | `memberProfile.jsp`    | Shows a **Virtual ID card** with the member's photo, user ID, name, and registration date. Personal details below the card. Change password via modal. |
 
 ### Shared Components
@@ -534,6 +539,7 @@ LibraryPortal/
 | `includes/memberSidebar.jsp` | Member navigation: Dashboard, Browse Books, My Borrows, Profile, Logout. |
 | `includes/adminTopbar.jsp`   | Admin header with name, role, live clock, and settings.  |
 | `includes/memberTopbar.jsp`  | Member header with name, role, live clock, and settings. |
+| `includes/footer.jsp`        | Shared footer with logo, dynamic copyright year, and credits. Included on all admin and member pages. |
 
 ---
 
@@ -602,7 +608,8 @@ LibraryPortal/
 | borrow_date   | TIMESTAMP     | When the book was borrowed         |
 | due_date      | TIMESTAMP     | Expected return date (borrow + chosen days) |
 | return_date   | TIMESTAMP     | When the book was returned (nullable) |
-| status        | VARCHAR(20)   | `BORROWED` or `RETURNED`           |
+| status        | VARCHAR(20)   | `BORROWED`, `RETURN_PENDING`, `REJECTED`, or `RETURNED` |
+| reject_message| TEXT          | Admin's rejection reason (nullable)   |
 
 #### `deleted_members` (audit log)
 | Column                  | Type          | Description                     |
@@ -641,13 +648,13 @@ All servlets are in `com.library.servlets` package and use `@WebServlet` annotat
 | AdminLoginServlet          | /AdminLoginServlet       | POST   | Authenticates admin credentials   |
 | MemberLoginServlet         | /MemberLoginServlet      | POST   | Authenticates member credentials  |
 | AdminRegisterServlet       | /AdminRegisterServlet    | POST   | **Disabled.** Admin self-signup is blocked; redirects with an error. |
-| MemberRegisterServlet      | /MemberRegisterServlet   | POST   | Creates a new member account. Requires a base64 face photo captured at signup. |
+| MemberRegisterServlet      | /MemberRegisterServlet   | POST   | Creates a new member account. Requires a profile photo upload and mandatory contact number (Indian format). |
 | LogoutServlet              | /LogoutServlet           | GET    | Invalidates session, redirects to login |
 | AddBookServlet             | /AddBookServlet          | POST   | Adds a new book to catalog        |
 | UpdateBookServlet          | /UpdateBookServlet       | POST   | Updates book details              |
 | DeleteBookServlet          | /DeleteBookServlet       | GET    | Deletes a book by ID. Blocked if the book is currently borrowed or has borrow history. |
 | AddMemberServlet           | /AddMemberServlet        | POST   | Admin creates a member account    |
-| UpdateMemberServlet        | /UpdateMemberServlet     | POST   | Admin updates member details      |
+| UpdateMemberServlet        | /UpdateMemberServlet     | POST   | Admin updates member email and contact number only |
 | DeleteMemberServlet        | /DeleteMemberServlet     | POST   | Admin deletes a member. Requires a reason (logged) and the member must have no active borrows. |
 | AddAdminServlet            | /AddAdminServlet         | POST   | Existing admin creates another admin account |
 | UpdateAdminServlet         | /UpdateAdminServlet      | POST   | Existing admin updates another admin record |
@@ -656,7 +663,9 @@ All servlets are in `com.library.servlets` package and use `@WebServlet` annotat
 | UpdateBranchServlet        | /UpdateBranchServlet     | POST   | Updates branch details            |
 | DeleteBranchServlet        | /DeleteBranchServlet     | POST   | Deletes a branch. Requires reason + branch name confirmation (server-verified); logged to `deleted_branches`. |
 | BorrowBookServlet          | /BorrowBookServlet       | POST   | Records a book borrow. Accepts `days` (1-30) and stores a due date. |
-| ReturnBookServlet          | /ReturnBookServlet       | POST   | Records a book return             |
+| ReturnBookServlet          | /ReturnBookServlet       | POST   | Member requests a return (sets status to RETURN_PENDING) |
+| ApproveReturnServlet       | /ApproveReturnServlet    | POST   | Admin approves a return request (sets RETURNED, updates availability) |
+| RejectReturnServlet        | /RejectReturnServlet     | POST   | Admin rejects a return request with a reason message |
 | ChangeCredentialsServlet   | /ChangeCredentialsServlet| POST   | Changes user password             |
 | ForgotPasswordServlet      | /ForgotPasswordServlet   | POST   | Initiates password reset          |
 | ResetPasswordServlet       | /ResetPasswordServlet    | POST   | Completes password reset          |
@@ -667,13 +676,13 @@ All servlets are in `com.library.servlets` package and use `@WebServlet` annotat
 
 - **Role-based access** - Separate Admin and Member interfaces
 - **Controlled admin provisioning** - Admin self-signup is disabled; new admins are created only by existing admins via the Admin Management page. First admin is seeded by SQL.
-- **Member virtual ID** - Face photo is captured in-browser at registration (via `getUserMedia`) and rendered on a virtual ID card in the member profile with name, user ID, and registration date.
+- **Member virtual ID** - Profile photo is uploaded at registration and rendered on a virtual ID card in the member profile with name, user ID, and registration date.
 - **Configurable borrow duration** - Members pick a loan length of 1-30 days when borrowing; a due date is stored and displayed.
 - **Automatic overdue flagging** - Entries with `due_date < NOW()` are shown as Overdue in both member and admin views.
 - **Book management** - Full CRUD with genre, language, and availability tracking. Deletion blocked while copies are out or history exists (protects the audit trail).
-- **Borrow/Return system** - Members borrow books, admins track current and overdue items from the catalog.
+- **Borrow/Return system** - Members borrow books and request returns. Admins must approve or reject each return request before the book is marked as returned. Rejected returns include a reason message visible to the member.
 - **Branch management** - Manage multiple library branches. Deletion requires a reason and a two-step confirmation (type the branch name exactly) to prevent accidents.
-- **User management** - Admins can add, edit, and remove members. Deletion requires that the member has returned all books plus a written reason.
+- **User management** - Admins can edit member email/contact and remove members. Deletion requires that the member has returned all books plus a written reason. Admins cannot modify personal details (name, username, password) for security.
 - **Audit logs** - `deleted_members` and `deleted_branches` tables persist who deleted what, when, and why. Both logs are surfaced as tabs on their respective admin pages and are visible to all admins.
 - **Dashboard analytics** - Visual stats with donut charts and activity feeds
 - **Responsive design** - Clean black & white theme with CSS variables
