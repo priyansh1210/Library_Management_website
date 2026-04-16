@@ -26,6 +26,7 @@ public class MemberRegisterServlet extends HttpServlet {
         name = name.trim();
 
         if (name.isEmpty() || email == null || email.trim().isEmpty()
+                || contactNo == null || contactNo.trim().isEmpty()
                 || username == null || username.trim().isEmpty()
                 || password == null || password.length() < 4) {
             response.sendRedirect("register.jsp?role=member&error=All fields required, password min 4 chars");
