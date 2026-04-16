@@ -6,7 +6,7 @@
         return;
     }
     int memberId = (int) session.getAttribute("memberId");
-    String memberName = "", memberEmail = "", memberUsername = "", memberJoined = "", photoDataUrl = "";
+    String memberName = "", memberEmail = "", memberUsername = "", memberJoined = "", memberContact = "", photoDataUrl = "";
     Connection conn = null;
     try {
         Class.forName("com.mysql.cj.jdbc.Driver");
@@ -18,6 +18,7 @@
             memberName = rs.getString("name");
             memberEmail = rs.getString("email");
             memberUsername = rs.getString("username") != null ? rs.getString("username") : memberEmail;
+            memberContact = rs.getString("contact_no") != null ? rs.getString("contact_no") : "N/A";
             memberJoined = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "N/A";
             byte[] img = rs.getBytes("profile_image");
             String mime = rs.getString("image_type");
@@ -99,6 +100,10 @@
                         <div class="detail-row">
                             <span class="detail-label">Username</span>
                             <span class="detail-value"><%= memberUsername %></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Contact No</span>
+                            <span class="detail-value"><%= memberContact %></span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Member Since</span>
