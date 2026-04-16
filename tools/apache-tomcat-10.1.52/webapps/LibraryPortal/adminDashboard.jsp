@@ -102,19 +102,52 @@
                     <div class="info-list">
                         <%
                             ResultSet rsOverdue = st.executeQuery(
-                                "SELECT bh.id, m.name, bh.id as borrow_id FROM borrow_history bh " +
-                                "JOIN members m ON bh.member_id = m.id " +
-                                "WHERE bh.status='BORROWED' ORDER BY bh.borrow_date LIMIT 5");
+                                "SELECT bh.id, bh.member_id, m.name, COALESCE(b.title,'[Removed Book]') AS book_title, bh.borrow_date, bh.due_date " +
+                                "FROM borrow_history bh JOIN members m ON bh.member_id = m.id LEFT JOIN books b ON bh.book_id = b.id " +
+                                "WHERE bh.status IN ('BORROWED','RETURN_PENDING','REJECTED') AND bh.due_date IS NOT NULL AND bh.due_date < NOW() " +
+                                "ORDER BY bh.due_date LIMIT 5");
                             while (rsOverdue.next()) {
+                                int odBid = rsOverdue.getInt("id");
+                                String odName = rsOverdue.getString("name");
+                                String odBook = rsOverdue.getString("book_title");
+                                String odBorrowDate = rsOverdue.getTimestamp("borrow_date") != null ? rsOverdue.getTimestamp("borrow_date").toString() : "-";
+                                String odDueDate = rsOverdue.getTimestamp("due_date") != null ? rsOverdue.getTimestamp("due_date").toString() : "-";
+                                long odDays = 0;
+                                if (rsOverdue.getTimestamp("due_date") != null) {
+                                    odDays = java.time.temporal.ChronoUnit.DAYS.between(
+                                        rsOverdue.getTimestamp("due_date").toLocalDateTime().toLocalDate(),
+                                        java.time.LocalDate.now());
+                                }
                         %>
                         <div class="info-list-item">
                             <div class="item-avatar"><img src="img/icon-avatar.svg" alt="User" style="width:20px;height:20px"></div>
                             <div class="item-details">
-                                <div class="item-name"><%= rsOverdue.getString("name") %></div>
-                                <div class="item-sub">Borrowed ID : <%= rsOverdue.getInt("borrow_id") %></div>
+                                <div class="item-name"><%= odName %></div>
+                                <div class="item-sub">Borrowed ID : <%= odBid %></div>
                             </div>
                             <div class="item-actions">
-                                <button title="View"><img src="img/icon-view.svg" alt="View" style="width:14px;height:14px"></button>
+                                <button title="View" onclick="openModal('dashOverdueModal-<%= odBid %>')"><img src="img/icon-view.svg" alt="View" style="width:14px;height:14px"></button>
+                            </div>
+                        </div>
+                        <!-- Overdue Detail Modal -->
+                        <div class="modal-overlay" id="dashOverdueModal-<%= odBid %>">
+                            <div class="modal">
+                                <div class="modal-header">
+                                    <h2><span class="modal-icon"><img src="img/icon-books.svg" alt="Book" style="width:20px;height:20px;vertical-align:middle"></span> Overdue Details</h2>
+                                    <button class="modal-close">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="view-details">
+                                        <div class="detail-row"><span class="detail-label">Member :</span><span class="detail-value"><%= odName %></span></div>
+                                        <div class="detail-row"><span class="detail-label">Book :</span><span class="detail-value"><%= odBook %></span></div>
+                                        <div class="detail-row"><span class="detail-label">Borrow Date :</span><span class="detail-value"><%= odBorrowDate %></span></div>
+                                        <div class="detail-row"><span class="detail-label">Due Date :</span><span class="detail-value"><%= odDueDate %></span></div>
+                                        <div class="detail-row"><span class="detail-label">Days Overdue :</span><span class="detail-value" style="color:#b00;font-weight:700"><%= odDays %> day<%= odDays != 1 ? "s" : "" %></span></div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn-confirm" onclick="closeModal('dashOverdueModal-<%= odBid %>')">CLOSE</button>
+                                </div>
                             </div>
                         </div>
                         <% } %>
