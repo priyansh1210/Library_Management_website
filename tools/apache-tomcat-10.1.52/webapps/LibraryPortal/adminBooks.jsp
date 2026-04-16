@@ -153,18 +153,21 @@
         <form action="AddBookServlet" method="post">
             <div class="modal-body">
                 <div class="form-group">
-                    <input type="text" name="title" placeholder="Name" required>
+                    <input type="text" name="title" placeholder="Book Name" required>
                 </div>
                 <div class="form-group">
-                    <input type="text" name="language" placeholder="Language" value="English">
+                    <input type="text" name="author" placeholder="Author" required>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <input type="text" name="genre" placeholder="Type" required>
                     </div>
                     <div class="form-group">
-                        <input type="number" name="quantity" placeholder="Quantity" value="1" min="1" required>
+                        <input type="text" name="language" placeholder="Language" value="English">
                     </div>
+                </div>
+                <div class="form-group">
+                    <input type="number" name="quantity" placeholder="No. of Books" value="1" min="1" required>
                 </div>
             </div>
             <div class="modal-footer">

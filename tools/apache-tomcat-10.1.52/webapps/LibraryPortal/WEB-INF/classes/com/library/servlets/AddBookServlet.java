@@ -18,12 +18,14 @@ public class AddBookServlet extends HttpServlet {
         }
 
         String title = request.getParameter("title");
+        String author = request.getParameter("author");
         String genre = request.getParameter("genre");
         String language = request.getParameter("language");
         String quantityStr = request.getParameter("quantity");
 
-        if (title == null || title.trim().isEmpty() || genre == null || genre.trim().isEmpty()) {
-            response.sendRedirect("adminBooks.jsp?msg=Name and Type are required");
+        if (title == null || title.trim().isEmpty() || author == null || author.trim().isEmpty()
+                || genre == null || genre.trim().isEmpty()) {
+            response.sendRedirect("adminBooks.jsp?msg=Book Name, Author and Type are required");
             return;
         }
 
@@ -36,7 +38,7 @@ public class AddBookServlet extends HttpServlet {
                 "INSERT INTO books (title, author, isbn, genre, language, quantity, available) VALUES (?,?,?,?,?,?,?)"
             );
             ps.setString(1, title.trim());
-            ps.setString(2, "");
+            ps.setString(2, author.trim());
             ps.setString(3, "");
             ps.setString(4, genre.trim());
             ps.setString(5, language != null ? language.trim() : "English");
