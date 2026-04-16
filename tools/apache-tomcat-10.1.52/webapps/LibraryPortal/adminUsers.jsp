@@ -12,7 +12,7 @@
         conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/library_portal", "root", "");
         Statement st = conn.createStatement();
         ResultSet rs = st.executeQuery(
-            "SELECT m.id, m.name, m.email, m.username, m.profile_image, m.image_type, m.created_at, " +
+            "SELECT m.id, m.name, m.email, m.contact_no, m.username, m.profile_image, m.image_type, m.created_at, " +
             "(SELECT COUNT(*) FROM borrow_history bh WHERE bh.member_id=m.id AND bh.status='BORROWED') AS active_borrows " +
             "FROM members m ORDER BY m.id");
 %>
@@ -77,6 +77,7 @@
                             String uname = rs.getString("name");
                             String uemail = rs.getString("email");
                             String uusername = rs.getString("username") != null ? rs.getString("username") : uemail;
+                            String ucontact = rs.getString("contact_no") != null ? rs.getString("contact_no") : "";
                             int activeBorrows = rs.getInt("active_borrows");
                             String uJoined = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "N/A";
                             String uPhotoDataUrl = "";
@@ -95,6 +96,7 @@
                                 <td><%= activeBorrows %></td>
                                 <td>
                                     <div class="action-btns">
+                                        <button class="action-btn edit-btn" onclick="openEditMemberModal(<%= uid %>, '<%= uemail.replace("'","\\'") %>', '<%= ucontact.replace("'","\\'") %>')" title="Edit"><img src="img/icon-edit.svg" alt="Edit" style="width:14px;height:14px"></button>
                                         <% if (activeBorrows > 0) { %>
                                         <button class="action-btn delete-btn" onclick="alert('Cannot delete: member has <%= activeBorrows %> book(s) not yet returned.')" title="Cannot delete - active borrows"><img src="img/icon-delete.svg" alt="Delete" style="width:14px;height:14px;opacity:0.4"></button>
                                         <% } else { %>
@@ -233,6 +235,27 @@
 </div>
 
 
+<!-- Edit Member Modal (email & contact only) -->
+<div class="modal-overlay" id="editMemberModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2><span class="modal-icon"><img src="img/icon-users.svg" alt="Users" style="width:20px;height:20px;vertical-align:middle"></span> Update Member</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <form action="UpdateMemberServlet" method="post">
+            <input type="hidden" name="id" id="editMemberId">
+            <div class="modal-body">
+                <div class="form-group"><label style="font-size:13px;font-weight:600;margin-bottom:4px;display:block">Email</label><input type="email" name="email" id="editMemberEmail" placeholder="Email" required></div>
+                <div class="form-group"><label style="font-size:13px;font-weight:600;margin-bottom:4px;display:block">Contact No</label><input type="tel" name="contactNo" id="editMemberContact" placeholder="Contact No (e.g. 9876543210)" pattern="[6-9][0-9]{9}" maxlength="10" title="Enter a valid 10-digit Indian mobile number starting with 6-9" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel">CANCEL</button>
+                <button type="submit" class="btn-confirm">UPDATE</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Delete Member Modal (with reason) -->
 <div class="modal-overlay delete-modal" id="deleteMemberModal">
     <div class="modal">
@@ -281,6 +304,12 @@
 
 <script src="js/main.js"></script>
 <script>
+function openEditMemberModal(id, email, contact) {
+    document.getElementById('editMemberId').value = id;
+    document.getElementById('editMemberEmail').value = email;
+    document.getElementById('editMemberContact').value = contact;
+    openModal('editMemberModal');
+}
 function openDeleteMemberModal(id, name) {
     document.getElementById('deleteMemberId').value = id;
     document.getElementById('deleteMemberName').textContent = name;

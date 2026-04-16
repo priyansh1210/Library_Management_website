@@ -18,40 +18,24 @@ public class UpdateMemberServlet extends HttpServlet {
         }
 
         String id = request.getParameter("id");
-        String name = request.getParameter("name");
         String email = request.getParameter("email");
-        String username = request.getParameter("username");
-        String password = request.getParameter("password");
+        String contactNo = request.getParameter("contactNo");
 
-        if (id == null || name == null || name.trim().isEmpty() || email == null || email.trim().isEmpty()) {
-            response.sendRedirect("adminUsers.jsp?msg=All fields are required");
+        if (id == null || email == null || email.trim().isEmpty()) {
+            response.sendRedirect("adminUsers.jsp?msg=Email is required");
             return;
         }
 
         try (Connection conn = DBConnection.getConnection()) {
-            if (password != null && !password.trim().isEmpty()) {
-                PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE members SET name=?, email=?, username=?, password=? WHERE id=?"
-                );
-                ps.setString(1, name.trim());
-                ps.setString(2, email.trim());
-                ps.setString(3, username != null ? username.trim() : email.trim());
-                ps.setString(4, password);
-                ps.setInt(5, Integer.parseInt(id));
-                ps.executeUpdate();
-                ps.close();
-            } else {
-                PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE members SET name=?, email=?, username=? WHERE id=?"
-                );
-                ps.setString(1, name.trim());
-                ps.setString(2, email.trim());
-                ps.setString(3, username != null ? username.trim() : email.trim());
-                ps.setInt(4, Integer.parseInt(id));
-                ps.executeUpdate();
-                ps.close();
-            }
-            response.sendRedirect("adminUsers.jsp?msg=User updated successfully");
+            PreparedStatement ps = conn.prepareStatement(
+                "UPDATE members SET email=?, contact_no=? WHERE id=?"
+            );
+            ps.setString(1, email.trim());
+            ps.setString(2, contactNo != null && !contactNo.trim().isEmpty() ? contactNo.trim() : null);
+            ps.setInt(3, Integer.parseInt(id));
+            ps.executeUpdate();
+            ps.close();
+            response.sendRedirect("adminUsers.jsp?msg=Member updated successfully");
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("adminUsers.jsp?msg=Update failed: " + e.getMessage());
