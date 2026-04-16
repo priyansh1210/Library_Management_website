@@ -137,7 +137,7 @@
                     <div class="form-group"><input type="text" name="lastName" placeholder="Last Name" required></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><input type="text" name="contactNo" placeholder="Contact No"></div>
+                    <div class="form-group"><input type="tel" name="contactNo" placeholder="Contact No (e.g. 9876543210)" pattern="[6-9][0-9]{9}" maxlength="10" title="Enter a valid 10-digit Indian mobile number starting with 6-9" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
                     <div class="form-group"><input type="email" name="email" placeholder="Email" required></div>
                 </div>
                 <div class="form-row">
@@ -168,7 +168,7 @@
                     <div class="form-group"><input type="text" name="lastName" placeholder="Last Name" required></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><input type="text" name="contactNo" placeholder="Contact No"></div>
+                    <div class="form-group"><input type="tel" name="contactNo" placeholder="Contact No (e.g. 9876543210)" pattern="[6-9][0-9]{9}" maxlength="10" title="Enter a valid 10-digit Indian mobile number starting with 6-9" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
                     <div class="form-group"><input type="email" name="email" placeholder="Email" required></div>
                 </div>
                 <div class="form-row">
